@@ -38,11 +38,11 @@
             </div>
         </div>
 
-        <!-- 2. ロビー画面 -->
+        <!-- 2. ロビー画面（開始文字選択を復活） -->
         <div id="screen-lobby" class="hidden flex-1 flex flex-col justify-center space-y-4 overflow-y-auto pb-10">
             <div class="glass p-6 rounded-[2rem] shadow-xl space-y-4">
                 <div class="text-center">
-                    <h2 class="font-black text-indigo-900 text-sm mb-1 uppercase tracking-widest">待機室</h2>
+                    <h2 class="font-black text-indigo-900 text-sm mb-1 uppercase tracking-widest text-center">待機室</h2>
                     <input id="invite-url" readonly onclick="copyUrl()" class="w-full bg-indigo-50 p-2 rounded text-[10px] text-indigo-600 text-center outline-none cursor-pointer">
                 </div>
                 <div id="player-list" class="flex flex-wrap gap-2 justify-center py-2 border-y border-indigo-50"></div>
@@ -57,18 +57,29 @@
                             </select>
                         </div>
                         <div>
-                            <p class="text-[9px] font-bold text-slate-400 mb-1 uppercase">目標値</p>
+                            <p class="text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-tighter">目標点 / ターン数</p>
                             <input id="v-input" type="number" value="15" class="w-full p-2 rounded bg-indigo-50 font-bold text-xs text-center outline-none">
                         </div>
                     </div>
+
+                    <!-- 追加：開始文字の選択 -->
+                    <div class="space-y-1 bg-indigo-50/50 p-3 rounded-xl">
+                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-2">スタート文字</p>
+                        <div class="flex gap-4 justify-around">
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="sw" value="shiritori" checked class="w-4 h-4 text-indigo-600"> <span class="text-xs font-bold text-slate-700">しりとり</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="sw" value="random" class="w-4 h-4 text-indigo-600"> <span class="text-xs font-bold text-slate-700">ランダム(4文字)</span></label>
+                        </div>
+                    </div>
+
                     <div class="bg-indigo-50/50 p-3 rounded-xl space-y-2">
+                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-1">ルールオプション</p>
                         <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-n" class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold">んOK</span></label>
                         <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-small" checked class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold">っ・ょ無視</span></label>
-                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-dakuten" checked class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold">濁点無視</span></label>
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-dakuten" checked class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold">濁点・半濁点無視</span></label>
                     </div>
-                    <button onclick="requestStart()" class="w-full bg-emerald-500 text-white p-4 rounded-xl font-black text-lg">ゲーム開始！</button>
+                    <button onclick="requestStart()" class="w-full bg-emerald-500 text-white p-4 rounded-xl font-black text-lg shadow-md active:scale-95 transition">ゲーム開始！</button>
                 </div>
-                <div id="guest-msg" class="hidden text-center py-4 text-indigo-400 font-black animate-pulse text-xs tracking-widest italic">Waiting for host...</div>
+                <div id="guest-msg" class="hidden text-center py-4 text-indigo-400 font-black animate-pulse text-xs tracking-widest italic uppercase">Waiting for Host...</div>
             </div>
         </div>
 
@@ -99,13 +110,11 @@
     </div>
 
     <script>
-        // 再接続を有効にする設定
         const socket = io({ reconnection: true, reconnectionAttempts: 10 });
         let roomId = new URLSearchParams(window.location.search).get('room');
         let myName = ""; 
         let isHost = false;
 
-        // 【再接続対策】接続が戻った時に自動で部屋に入り直す
         socket.on('connect', () => {
             if (roomId && myName) {
                 socket.emit('joinRoom', { roomId, name: myName });
@@ -116,13 +125,10 @@
             const nameInput = document.getElementById('name-input');
             if(!nameInput.value) return;
             myName = nameInput.value;
-            
             if (!roomId) roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
-            
             const newUrl = window.location.origin + window.location.pathname + '?room=' + roomId;
             window.history.pushState({}, '', newUrl);
             document.getElementById('invite-url').value = newUrl;
-
             socket.emit('joinRoom', { roomId, name: myName });
             document.getElementById('screen-login').classList.add('hidden');
             document.getElementById('screen-lobby').classList.remove('hidden');
@@ -134,6 +140,9 @@
         }
 
         function requestStart() {
+            // ラジオボタンの選択値を取得
+            const swType = document.querySelector('input[name="sw"]:checked')?.value || 'shiritori';
+            
             socket.emit('startGame', {
                 roomId: roomId,
                 settings: {
@@ -142,7 +151,7 @@
                     allowN: document.getElementById('c-n').checked,
                     smallToBig: document.getElementById('c-small').checked,
                     ignoreDakuten: document.getElementById('c-dakuten').checked,
-                    startWordType: 'shiritori'
+                    startWordType: swType
                 }
             });
         }
@@ -196,8 +205,8 @@
             document.getElementById('turn-info').innerText = state.players[turnIndex].id === socket.id ? "あなたの番！" : `${state.players[turnIndex].name}さんの番`;
             document.getElementById('score-top').innerHTML = state.players.map((p, i) => `
                 <div class="shrink-0 px-5 py-2 rounded-xl glass ${i === turnIndex ? 'ring-2 ring-indigo-500 shadow-md scale-105' : 'opacity-40'}">
-                    <div class="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">${p.name}</div>
-                    <div class="text-sm font-black">${p.score}</div>
+                    <div class="text-[8px] font-bold text-slate-400 uppercase tracking-tighter text-center">${p.name}</div>
+                    <div class="text-sm font-black text-center">${p.score}</div>
                 </div>
             `).join('');
             const historyBox = document.getElementById('history-box');
