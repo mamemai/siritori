@@ -4,14 +4,11 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    pingTimeout: 60000, // 接続維持のための設定
-    pingInterval: 25000
-});
+const io = new Server(server);
 
 app.use(express.static('public'));
 
-let rooms = {}; // 部屋データ
+let rooms = {}; 
 
 const smallMap = { 'ぁ':'あ','ぃ':'い','ぅ':'う','ぇ':'え','ぉ':'お','ゃ':'や','ゅ':'ゆ','ょ':'よ','っ':'つ' };
 const dakutenMap = {
@@ -35,23 +32,22 @@ io.on('connection', (socket) => {
 
         if (!rooms[roomId]) {
             rooms[roomId] = {
-                players: [], history: [], lastWord: "", turnIndex: 0, settings: { mode: 'point', targetValue: 15 }, isStarted: false, hostId: socket.id
+                players: [], history: [], lastWord: "", turnIndex: 0, settings: {}, isStarted: false, hostId: socket.id
             };
         }
 
         const room = rooms[roomId];
-        // 既存のプレイヤーがいればIDを更新（再接続対策）
         const existingPlayer = room.players.find(p => p.name === name);
+        
         if (existingPlayer) {
-            existingPlayer.id = socket.id;
-        } else if (!room.isStarted) {
+            existingPlayer.id = socket.id; // 再接続
+        } else {
             room.players.push({ id: socket.id, name, score: 0, isHost: socket.id === room.hostId });
         }
 
         io.to(roomId).emit('updatePlayers', room.players);
         socket.emit('assignedRole', { isHost: socket.id === room.hostId });
         
-        // すでに開始していたら最新状態を送る
         if (room.isStarted) {
             socket.emit('gameStarted', room);
         }
@@ -60,21 +56,33 @@ io.on('connection', (socket) => {
     socket.on('startGame', ({ roomId, settings }) => {
         const room = rooms[roomId];
         if (!room || socket.id !== room.hostId) return;
-        room.settings = settings || { mode: 'point', targetValue: 15 };
+        
+        room.settings = settings;
         room.isStarted = true;
-        room.lastWord = (settings && settings.startWordType === 'random') ? 
+        room.players.forEach(p => p.score = 0); // スコアリセット
+        
+        room.lastWord = (settings.startWordType === 'random') ? 
             Array.from({length:4}, () => "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわ"[Math.floor(Math.random()*40)]).join('') : "しりとり";
+        
         room.history = [room.lastWord];
         room.turnIndex = 0;
         io.to(roomId).emit('gameStarted', room);
     });
 
+    // ★ 新しく追加：ロビーに戻る処理
+    socket.on('backToLobby', (roomId) => {
+        const room = rooms[roomId];
+        if (!room || socket.id !== room.hostId) return;
+        room.isStarted = false;
+        io.to(roomId).emit('returnToLobby');
+    });
+
     socket.on('submitWord', ({ roomId, word }) => {
         const room = rooms[roomId];
-        if (!room || !room.isStarted) return socket.emit('errorMsg', "部屋が存在しないか終了しています。再起動してください。");
+        if (!room || !room.isStarted) return;
 
         const player = room.players[room.turnIndex];
-        if (!player || socket.id !== player.id) return socket.emit('errorMsg', "あなたの番ではありません");
+        if (!player || socket.id !== player.id) return;
 
         if (room.history.includes(word)) return socket.emit('errorMsg', "すでに使われています");
 
@@ -106,7 +114,25 @@ io.on('connection', (socket) => {
             socket.emit('errorMsg', "つながっていません");
         }
     });
+
+    socket.on('disconnect', () => {
+        for (const id in rooms) {
+            const room = rooms[id];
+            const p = room.players.find(p => p.id === socket.id);
+            if (p) {
+                // ホストがいなくなったら次の人をホストにする（任意）
+                if (p.isHost && room.players.length > 1) {
+                    const nextHost = room.players.find(p => p.id !== socket.id);
+                    if(nextHost) {
+                        room.hostId = nextHost.id;
+                        nextHost.isHost = true;
+                        io.to(nextHost.id).emit('assignedRole', { isHost: true });
+                    }
+                }
+            }
+        }
+    });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running`));
+server.listen(PORT, () => console.log(`Server started`));
