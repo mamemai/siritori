@@ -24,6 +24,7 @@
         .history-item:first-child::before { content: ""; margin: 0; }
         #history-box { overflow-y: auto; -webkit-overflow-scrolling: touch; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="p-3">
@@ -32,54 +33,55 @@
         <!-- 1. ログイン画面 -->
         <div id="screen-login" class="flex-1 flex flex-col justify-center space-y-6">
             <h1 class="text-4xl font-black text-indigo-600 text-center tracking-tighter uppercase italic">Block Shiritori</h1>
-            <div class="glass p-6 rounded-[2rem] shadow-xl space-y-4 text-center">
+            <div class="glass p-6 rounded-[2rem] shadow-xl space-y-4">
                 <input id="name-input" type="text" class="w-full p-4 rounded-xl border-none bg-indigo-50 outline-none text-lg font-bold text-center" placeholder="なまえを入力">
-                <button onclick="handleLogin()" class="w-full bg-indigo-600 text-white p-4 rounded-xl font-black text-lg shadow-lg active:scale-95 transition">参加する</button>
+                <button id="btn-login-action" onclick="handleLogin()" class="w-full bg-indigo-600 text-white p-4 rounded-xl font-black text-lg shadow-lg active:scale-95 transition">部屋を作る</button>
             </div>
         </div>
 
-        <!-- 2. ロビー画面（開始文字選択を復活） -->
+        <!-- 2. ロビー画面 -->
         <div id="screen-lobby" class="hidden flex-1 flex flex-col justify-center space-y-4 overflow-y-auto pb-10">
-            <div class="glass p-6 rounded-[2rem] shadow-xl space-y-4">
+            <div class="glass p-6 rounded-[2rem] shadow-xl space-y-5">
                 <div class="text-center">
-                    <h2 class="font-black text-indigo-900 text-sm mb-1 uppercase tracking-widest text-center">待機室</h2>
+                    <h2 class="font-black text-indigo-900 text-sm mb-1 uppercase tracking-widest">待機室</h2>
                     <input id="invite-url" readonly onclick="copyUrl()" class="w-full bg-indigo-50 p-2 rounded text-[10px] text-indigo-600 text-center outline-none cursor-pointer">
                 </div>
                 <div id="player-list" class="flex flex-wrap gap-2 justify-center py-2 border-y border-indigo-50"></div>
 
+                <!-- ホスト専用設定 -->
                 <div id="host-settings" class="hidden space-y-4 pt-2">
                     <div class="grid grid-cols-2 gap-3 text-center">
                         <div>
-                            <p class="text-[9px] font-bold text-slate-400 mb-1 uppercase">モード</p>
+                            <p class="text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-tighter">モード</p>
                             <select id="m-select" class="w-full p-2 rounded bg-indigo-50 font-bold text-xs outline-none text-center">
                                 <option value="point">ポイント制</option>
                                 <option value="turn">ターン制</option>
                             </select>
                         </div>
                         <div>
-                            <p class="text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-tighter">目標点 / ターン数</p>
+                            <p class="text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-tighter text-center">目標点/ターン数</p>
                             <input id="v-input" type="number" value="15" class="w-full p-2 rounded bg-indigo-50 font-bold text-xs text-center outline-none">
                         </div>
                     </div>
 
-                    <!-- 追加：開始文字の選択 -->
                     <div class="space-y-1 bg-indigo-50/50 p-3 rounded-xl">
                         <p class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-2">スタート文字</p>
                         <div class="flex gap-4 justify-around">
                             <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="sw" value="shiritori" checked class="w-4 h-4 text-indigo-600"> <span class="text-xs font-bold text-slate-700">しりとり</span></label>
-                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="sw" value="random" class="w-4 h-4 text-indigo-600"> <span class="text-xs font-bold text-slate-700">ランダム(4文字)</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="sw" value="random" class="w-4 h-4 text-indigo-600"> <span class="text-xs font-bold text-slate-700">ランダム</span></label>
                         </div>
                     </div>
 
                     <div class="bg-indigo-50/50 p-3 rounded-xl space-y-2">
                         <p class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-1">ルールオプション</p>
-                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-n" class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold">んOK</span></label>
-                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-small" checked class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold">っ・ょ無視</span></label>
-                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-dakuten" checked class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold">濁点・半濁点無視</span></label>
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-n" class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold text-slate-700">「ん」OK</span></label>
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-small" checked class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold text-slate-700">っ・ょ無視</span></label>
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-dakuten" checked class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold text-slate-700">濁点無視</span></label>
                     </div>
                     <button onclick="requestStart()" class="w-full bg-emerald-500 text-white p-4 rounded-xl font-black text-lg shadow-md active:scale-95 transition">ゲーム開始！</button>
                 </div>
-                <div id="guest-msg" class="hidden text-center py-4 text-indigo-400 font-black animate-pulse text-xs tracking-widest italic uppercase">Waiting for Host...</div>
+                <!-- ゲスト用メッセージ -->
+                <div id="guest-msg" class="hidden text-center py-6 text-indigo-400 font-black animate-pulse text-xs tracking-widest italic uppercase">Waiting for Host...</div>
             </div>
         </div>
 
@@ -105,7 +107,9 @@
         <!-- 4. 勝利画面 -->
         <div id="screen-win" class="hidden fixed inset-0 bg-indigo-600 z-50 flex flex-col items-center justify-center p-6 text-center text-white">
             <div id="winner-name" class="text-5xl font-black text-yellow-400 mb-10 italic"></div>
-            <button onclick="location.reload()" class="bg-white text-indigo-600 px-12 py-4 rounded-full font-black text-lg transition hover:bg-yellow-400">タイトルへ</button>
+            <!-- ホスト専用：次を開始ボタン -->
+            <button id="btn-back-lobby" onclick="backToLobby()" class="hidden bg-white text-indigo-600 px-10 py-4 rounded-full font-black text-xl shadow-2xl mb-4">ロビーに戻る</button>
+            <button onclick="location.reload()" class="bg-indigo-400 text-white px-10 py-3 rounded-full font-bold text-sm">タイトルへ戻る</button>
         </div>
     </div>
 
@@ -115,20 +119,25 @@
         let myName = ""; 
         let isHost = false;
 
+        // URLに部屋IDがある場合はボタンの文字を変える
+        if (roomId) document.getElementById('btn-login-action').innerText = "この部屋に参加";
+
+        // 再接続時に自動復帰
         socket.on('connect', () => {
-            if (roomId && myName) {
-                socket.emit('joinRoom', { roomId, name: myName });
-            }
+            if (roomId && myName) socket.emit('joinRoom', { roomId, name: myName });
         });
 
         function handleLogin() {
             const nameInput = document.getElementById('name-input');
             if(!nameInput.value) return;
             myName = nameInput.value;
-            if (!roomId) roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
-            const newUrl = window.location.origin + window.location.pathname + '?room=' + roomId;
-            window.history.pushState({}, '', newUrl);
-            document.getElementById('invite-url').value = newUrl;
+            
+            if (!roomId) {
+                roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
+                const newUrl = window.location.origin + window.location.pathname + '?room=' + roomId;
+                window.history.pushState({}, '', newUrl);
+            }
+            document.getElementById('invite-url').value = window.location.origin + window.location.pathname + '?room=' + roomId;
             socket.emit('joinRoom', { roomId, name: myName });
             document.getElementById('screen-login').classList.add('hidden');
             document.getElementById('screen-lobby').classList.remove('hidden');
@@ -140,9 +149,7 @@
         }
 
         function requestStart() {
-            // ラジオボタンの選択値を取得
             const swType = document.querySelector('input[name="sw"]:checked')?.value || 'shiritori';
-            
             socket.emit('startGame', {
                 roomId: roomId,
                 settings: {
@@ -154,6 +161,10 @@
                     startWordType: swType
                 }
             });
+        }
+
+        function backToLobby() {
+            socket.emit('backToLobby', roomId);
         }
 
         function sendWord() {
@@ -169,10 +180,21 @@
             if (e.key === 'Enter') { e.preventDefault(); sendWord(); }
         });
 
+        socket.on('returnToLobby', () => {
+            document.getElementById('screen-win').classList.add('hidden');
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-lobby').classList.remove('hidden');
+        });
+
         socket.on('assignedRole', (data) => {
             isHost = data.isHost;
-            if (isHost) document.getElementById('host-settings').classList.remove('hidden');
-            else document.getElementById('guest-msg').classList.remove('hidden');
+            if (isHost) {
+                document.getElementById('host-settings').classList.remove('hidden');
+                document.getElementById('btn-back-lobby').classList.remove('hidden');
+            } else {
+                document.getElementById('guest-msg').classList.remove('hidden');
+                document.getElementById('btn-back-lobby').classList.add('hidden');
+            }
         });
 
         socket.on('updatePlayers', (players) => {
@@ -194,6 +216,7 @@
             document.getElementById('winner-name').innerText = data.winner + "の勝利！";
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
         });
+
         socket.on('errorMsg', (msg) => {
             alert(msg);
             if(msg.includes("存在しない")) location.href = window.location.origin + window.location.pathname;
