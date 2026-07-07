@@ -1,7 +1,6 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -19,6 +18,7 @@ const dakutenMap = {
 };
 
 function normalize(str, settings) {
+    if (!str) return "";
     let res = str;
     if (settings.ignoreDakuten) res = res.split('').map(c => dakutenMap[c] || c).join('');
     if (settings.smallToBig) res = res.split('').map(c => smallMap[c] || c).join('');
@@ -27,42 +27,26 @@ function normalize(str, settings) {
 
 io.on('connection', (socket) => {
     socket.on('joinRoom', ({ roomId, name }) => {
+        if (!roomId || !name) return;
         socket.join(roomId);
-
         if (!rooms[roomId]) {
             rooms[roomId] = {
-                players: [],
-                history: [],
-                lastWord: "",
-                turnIndex: 0,
-                settings: {},
-                isStarted: false,
-                hostId: socket.id
+                players: [], history: [], lastWord: "", turnIndex: 0, settings: {}, isStarted: false, hostId: socket.id
             };
         }
-
         const room = rooms[roomId];
-        const isHost = socket.id === room.hostId;
-        room.players.push({ id: socket.id, name, score: 0, isHost });
-
+        room.players.push({ id: socket.id, name, score: 0, isHost: socket.id === room.hostId });
         io.to(roomId).emit('updatePlayers', room.players);
-        socket.emit('assignedRole', { isHost });
+        socket.emit('assignedRole', { isHost: socket.id === room.hostId });
     });
 
     socket.on('startGame', ({ roomId, settings }) => {
         const room = rooms[roomId];
         if (!room || socket.id !== room.hostId) return;
-
         room.settings = settings;
         room.isStarted = true;
-        
-        if(settings.startWordType === 'random') {
-             const hira = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわ";
-             room.lastWord = Array.from({length:4}, () => hira[Math.floor(Math.random()*hira.length)]).join('');
-        } else {
-            room.lastWord = "しりとり";
-        }
-        
+        room.lastWord = (settings.startWordType === 'random') ? 
+            Array.from({length:4}, () => "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわ"[Math.floor(Math.random()*40)]).join('') : "しりとり";
         room.history = [room.lastWord];
         room.turnIndex = 0;
         io.to(roomId).emit('gameStarted', room);
@@ -72,48 +56,68 @@ io.on('connection', (socket) => {
         const room = rooms[roomId];
         if (!room || !room.isStarted) return;
 
+        // プレイヤーの存在確認
         const player = room.players[room.turnIndex];
-        if (socket.id !== player.id) return;
+        if (!player || socket.id !== player.id) {
+            return socket.emit('errorMsg', "あなたの番ではありません");
+        }
+
+        const normalizedInput = normalize(word, room.settings);
+        const normalizedHistory = room.history.map(h => normalize(h, room.settings));
+
+        // 重複チェック（正規化後でも比較）
+        if (room.history.includes(word) || normalizedHistory.includes(normalizedInput)) {
+            return socket.emit('errorMsg', "その単語はすでに使われています！");
+        }
 
         const normPrev = normalize(room.lastWord, room.settings);
-        const normNext = normalize(word, room.settings);
+        const normNext = normalizedInput;
+        
         let overlap = 0;
         for (let i = Math.min(normPrev.length, normNext.length); i > 0; i--) {
             if (normPrev.endsWith(normNext.substring(0, i))) { overlap = i; break; }
         }
 
-        if (overlap > 0 && !room.history.includes(word)) {
+        if (overlap > 0) {
             player.score += overlap;
             room.lastWord = word;
             room.history.push(word);
+            
+            // 勝利判定
+            if (room.settings.mode === 'point' && player.score >= room.settings.targetValue) {
+                return io.to(roomId).emit('gameOver', { winner: player.name, state: room });
+            } 
+            
+            // ターン交代
             room.turnIndex = (room.turnIndex + 1) % room.players.length;
 
-            if (room.settings.mode === 'point' && player.score >= room.settings.targetValue) {
-                io.to(roomId).emit('gameOver', { winner: player.name, state: room });
-            } else if (room.settings.mode === 'turn' && room.history.length > room.players.length * room.settings.targetValue) {
+            // ターン制の終了判定
+            if (room.settings.mode === 'turn' && room.history.length > room.players.length * room.settings.targetValue) {
                 const max = Math.max(...room.players.map(p => p.score));
                 const winners = room.players.filter(p => p.score === max).map(p => p.name).join(' & ');
-                io.to(roomId).emit('gameOver', { winner: winners, state: room });
-            } else {
-                io.to(roomId).emit('updateState', room);
+                return io.to(roomId).emit('gameOver', { winner: winners, state: room });
             }
+
+            io.to(roomId).emit('updateState', room);
         } else {
-            socket.emit('errorMsg', "つながらないか、既出の単語です");
+            socket.emit('errorMsg', "単語がつながっていません！");
         }
     });
 
     socket.on('disconnect', () => {
-        for (const roomId in rooms) {
-            const room = rooms[roomId];
+        for (const id in rooms) {
+            const room = rooms[id];
             const pIndex = room.players.findIndex(p => p.id === socket.id);
             if (pIndex !== -1) {
                 room.players.splice(pIndex, 1);
-                io.to(roomId).emit('updatePlayers', room.players);
-                if (room.players.length === 0) delete rooms[roomId];
+                // 抜けた人が今の番だった場合の調整
+                if (room.turnIndex >= room.players.length) room.turnIndex = 0;
+                io.to(id).emit('updatePlayers', room.players);
+                if (room.players.length === 0) delete rooms[id];
             }
         }
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Server started on port ${PORT}`));
