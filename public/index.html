@@ -18,17 +18,13 @@
             flex-direction: column;
             overflow: hidden;
         }
-        /* セーフエリア（iPhoneのバーなど）対策 */
         .safe-pb { padding-bottom: env(safe-area-inset-bottom); }
-        
         .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.3); }
         .history-item::before { content: "→"; margin: 0 0.5rem; color: #6366f1; opacity: 0.5; }
         .history-item:first-child::before { content: ""; margin: 0; }
-        
-        #history-box { 
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
+        #history-box { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        /* スコアのスクロールバーを隠す */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body class="p-3">
@@ -43,32 +39,64 @@
             </div>
         </div>
 
-        <!-- 2. ロビー画面 -->
-        <div id="screen-lobby" class="hidden flex-1 flex flex-col justify-center space-y-4">
-            <div class="glass p-5 rounded-3xl shadow-lg space-y-3 text-center">
-                <p class="text-xs font-bold text-indigo-400 uppercase">招待URLを友達に送ってね</p>
-                <input id="invite-url" readonly onclick="copyUrl()" class="w-full bg-indigo-50 p-2 rounded text-[10px] text-indigo-600 text-center outline-none">
-                <div id="player-list" class="flex flex-wrap gap-2 justify-center py-2"></div>
-                <div id="host-settings" class="hidden border-t pt-4 space-y-3">
-                    <div class="flex gap-2">
-                        <select id="m-select" class="flex-1 p-2 rounded bg-indigo-50 font-bold text-xs"><option value="point">ポイント制</option><option value="turn">ターン制</option></select>
-                        <input id="v-input" type="number" value="15" class="w-16 p-2 rounded bg-indigo-50 font-bold text-xs text-center">
-                    </div>
-                    <button onclick="requestStart()" class="w-full bg-emerald-500 text-white p-3 rounded-xl font-black">ゲーム開始！</button>
+        <!-- 2. ロビー画面（ホスト設定復活） -->
+        <div id="screen-lobby" class="hidden flex-1 flex flex-col justify-center space-y-4 overflow-y-auto pb-10">
+            <div class="glass p-5 rounded-3xl shadow-lg space-y-4">
+                <div class="text-center">
+                    <h2 class="font-black text-indigo-900 text-sm mb-1 uppercase tracking-widest">待機ロビー</h2>
+                    <input id="invite-url" readonly onclick="copyUrl()" class="w-full bg-indigo-50 p-2 rounded text-[10px] text-indigo-600 text-center outline-none cursor-pointer">
                 </div>
-                <div id="guest-msg" class="hidden text-indigo-400 font-black animate-pulse text-xs">ホストが準備中...</div>
+                
+                <div id="player-list" class="flex flex-wrap gap-2 justify-center py-1"></div>
+
+                <!-- ホスト専用：全設定項目 -->
+                <div id="host-settings" class="hidden border-t border-indigo-100 pt-4 space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase">モード</p>
+                            <select id="m-select" class="w-full p-2 rounded bg-indigo-50 font-bold text-xs outline-none">
+                                <option value="point">ポイント制</option>
+                                <option value="turn">ターン制</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase">目標値</p>
+                            <input id="v-input" type="number" value="15" class="w-full p-2 rounded bg-indigo-50 font-bold text-xs text-center outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-y-2 text-[10px] font-bold text-slate-500">
+                        <label class="flex items-center gap-2"><input type="checkbox" id="c-n" class="w-4 h-4 rounded"> 「ん」継続OK</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" id="c-s" checked class="w-4 h-4 rounded"> 小文字無視</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" id="c-d" checked class="w-4 h-4 rounded"> 濁点無視</label>
+                        <div class="col-span-2 space-y-1 mt-1">
+                            <p class="text-slate-400">スタートワード</p>
+                            <div class="flex gap-4">
+                                <label class="flex items-center gap-1"><input type="radio" name="sw" value="shiritori" checked> しりとり</label>
+                                <label class="flex items-center gap-1"><input type="radio" name="sw" value="random"> ランダム</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="requestStart()" class="w-full bg-emerald-500 text-white p-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition">
+                        ゲームを開始する！
+                    </button>
+                </div>
+
+                <!-- ゲスト用メッセージ -->
+                <div id="guest-msg" class="hidden text-center py-6 text-indigo-400 font-black animate-pulse text-xs">ホストが準備中...</div>
             </div>
         </div>
 
         <!-- 3. ゲーム画面 -->
         <div id="screen-game" class="hidden flex-1 flex flex-col min-h-0">
             <!-- スコア -->
-            <div id="score-top" class="flex gap-2 overflow-x-auto py-1 shrink-0 scroll-smooth"></div>
+            <div id="score-top" class="flex gap-2 overflow-x-auto py-1 shrink-0 no-scrollbar"></div>
             
             <!-- メインワード -->
             <div class="bg-slate-900 py-5 px-3 rounded-2xl shadow-xl text-center shrink-0 mb-2 border-b-4 border-slate-800">
                 <div id="current-word" class="text-3xl font-black text-white tracking-widest break-all"></div>
-                <p class="text-indigo-500 text-[8px] font-bold mt-1 uppercase tracking-widest">Current Word</p>
+                <p class="text-indigo-500 text-[8px] font-bold mt-1 uppercase tracking-widest text-center">Current Word</p>
             </div>
 
             <!-- 履歴ボックス -->
@@ -76,7 +104,7 @@
                 <div id="history-box" class="flex-1 font-bold text-slate-600 text-sm leading-relaxed"></div>
             </div>
 
-            <!-- ★改善版：入力エリア（ボタンを埋め込み） -->
+            <!-- 入力エリア（ボタン埋め込み型） -->
             <div class="shrink-0 safe-pb">
                 <div id="turn-info" class="text-center font-black text-indigo-600 text-[10px] mb-1 uppercase"></div>
                 <div class="relative flex items-center">
@@ -121,19 +149,20 @@
             const urlInput = document.getElementById("invite-url");
             urlInput.select();
             document.execCommand("copy");
-            alert("URLをコピーしました！");
+            alert("コピーしました");
         }
 
         function requestStart() {
+            const swType = document.querySelector('input[name="sw"]:checked')?.value || 'shiritori';
             socket.emit('startGame', {
                 roomId: roomId,
                 settings: {
                     mode: document.getElementById('m-select').value,
                     targetValue: parseInt(document.getElementById('v-input').value) || 15,
                     allowN: document.getElementById('c-n').checked,
-                    smallToBig: true,
-                    ignoreDakuten: true,
-                    startWordType: 'shiritori'
+                    smallToBig: document.getElementById('c-s').checked,
+                    ignoreDakuten: document.getElementById('c-d').checked,
+                    startWordType: swType
                 }
             });
         }
@@ -143,14 +172,13 @@
             const word = input.value.trim();
             if(word) {
                 socket.emit('submitWord', { roomId, word });
-                input.value = ""; // 送信したらクリア
+                input.value = "";
             }
         }
 
-        // エンターキー対策
         document.getElementById('word-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                e.preventDefault(); // 改行を防ぐ
+                e.preventDefault();
                 sendWord();
             }
         });
