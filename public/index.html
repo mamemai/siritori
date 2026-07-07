@@ -3,130 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ブロックしりとり オンライン</title>
+    <title>ブロックしりとり Online</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700;900&display=swap');
-        body { 
-            font-family: 'Noto Sans JP', sans-serif; 
-            background: #f0f4ff;
-            height: 100dvh;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .safe-pb { padding-bottom: env(safe-area-inset-bottom); }
+        body { font-family: 'Noto Sans JP', sans-serif; background: #f0f4ff; height: 100dvh; margin: 0; display: flex; flex-direction: column; overflow: hidden; }
         .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.3); }
         .history-item::before { content: "→"; margin: 0 0.5rem; color: #6366f1; opacity: 0.5; }
         .history-item:first-child::before { content: ""; margin: 0; }
         #history-box { overflow-y: auto; -webkit-overflow-scrolling: touch; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body class="p-3">
     <div id="app" class="max-w-md mx-auto w-full h-full flex flex-col">
         
-        <!-- 1. ログイン -->
+        <!-- LOGIN -->
         <div id="screen-login" class="flex-1 flex flex-col justify-center space-y-6">
-            <h1 class="text-4xl font-black text-indigo-600 text-center tracking-tighter uppercase italic">Block Shiritori</h1>
+            <h1 class="text-4xl font-black text-indigo-600 text-center uppercase italic">Block Shiritori</h1>
             <div class="glass p-6 rounded-[2rem] shadow-xl space-y-4">
-                <input id="name-input" type="text" class="w-full p-4 rounded-xl border-none bg-indigo-50 outline-none text-lg font-bold text-center" placeholder="なまえを入力">
-                <button onclick="handleLogin()" class="w-full bg-indigo-600 text-white p-4 rounded-xl font-black text-lg active:scale-95 transition shadow-lg">参加する</button>
+                <input id="name-input" type="text" class="w-full p-4 rounded-xl border-none bg-indigo-50 outline-none text-lg font-bold text-center" placeholder="名前を入力">
+                <button onclick="handleLogin()" class="w-full bg-indigo-600 text-white p-4 rounded-xl font-black text-lg active:scale-95 transition">参加する</button>
             </div>
         </div>
 
-        <!-- 2. ロビー -->
+        <!-- LOBBY -->
         <div id="screen-lobby" class="hidden flex-1 flex flex-col justify-center space-y-4 overflow-y-auto pb-10">
-            <div class="glass p-6 rounded-[2rem] shadow-xl space-y-5">
-                <div class="text-center">
-                    <h2 class="font-black text-indigo-900 text-sm mb-2 tracking-widest uppercase">待機室</h2>
-                    <input id="invite-url" readonly onclick="copyUrl()" class="w-full bg-indigo-50 p-2 rounded text-[10px] text-indigo-600 text-center outline-none cursor-pointer">
-                </div>
+            <div class="glass p-6 rounded-[2rem] shadow-xl space-y-4 text-center">
+                <h2 class="font-black text-indigo-900 text-sm tracking-widest uppercase">待機中</h2>
+                <input id="invite-url" readonly onclick="copyUrl()" class="w-full bg-indigo-50 p-2 rounded text-[10px] text-indigo-600 text-center outline-none">
+                <div id="player-list" class="flex flex-wrap gap-2 justify-center py-2"></div>
                 
-                <div id="player-list" class="flex flex-wrap gap-2 justify-center border-y border-indigo-50 py-3"></div>
-
-                <div id="host-settings" class="hidden space-y-4 animate-in fade-in duration-500">
+                <div id="host-settings" class="hidden border-t pt-4 space-y-4">
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="space-y-1">
-                            <p class="text-[9px] font-bold text-slate-400 uppercase">モード</p>
-                            <select id="m-select" class="w-full p-2 rounded-lg bg-indigo-50 font-bold text-xs outline-none">
-                                <option value="point">ポイント制</option>
-                                <option value="turn">ターン制</option>
-                            </select>
-                        </div>
-                        <div class="space-y-1">
-                            <p class="text-[9px] font-bold text-slate-400 uppercase">目標値</p>
-                            <input id="v-input" type="number" value="15" class="w-full p-2 rounded-lg bg-indigo-50 font-bold text-xs text-center outline-none">
-                        </div>
+                        <select id="m-select" class="p-2 rounded bg-indigo-50 font-bold text-xs"><option value="point">ポイント制</option><option value="turn">ターン制</option></select>
+                        <input id="v-input" type="number" value="15" class="p-2 rounded bg-indigo-50 font-bold text-xs text-center">
                     </div>
-
-                    <div class="bg-slate-50 p-3 rounded-xl space-y-2">
-                        <p class="text-[9px] font-bold text-slate-400 uppercase mb-1 tracking-tighter text-center">ルール設定</p>
-                        <div class="flex flex-col gap-2">
-                            <label class="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" id="c-n" class="w-5 h-5 rounded text-indigo-600 border-indigo-200">
-                                <span class="text-xs font-bold text-slate-700">「ん」で終わっても継続OK</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" id="c-small" checked class="w-5 h-5 rounded text-indigo-600 border-indigo-200">
-                                <span class="text-xs font-bold text-slate-700">小さい文字(っ/ょ)を無視</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer">
-                                <input type="checkbox" id="c-dakuten" checked class="w-5 h-5 rounded text-indigo-600 border-indigo-200">
-                                <span class="text-xs font-bold text-slate-700">濁点・半濁点(が/ぱ)を無視</span>
-                            </label>
-                        </div>
+                    <div class="bg-indigo-50/50 p-3 rounded-xl space-y-2 text-left">
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-n" class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold">んOK</span></label>
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-small" checked class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold">っ・ょ無視</span></label>
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="c-dakuten" checked class="w-5 h-5 rounded text-indigo-600"><span class="text-xs font-bold">濁点無視</span></label>
                     </div>
-
-                    <div class="space-y-2">
-                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">開始ワード</p>
-                        <div class="flex gap-4 px-1">
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="radio" name="sw" value="shiritori" checked class="w-4 h-4 text-indigo-600">
-                                <span class="text-xs font-bold text-slate-700">しりとり</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="radio" name="sw" value="random" class="w-4 h-4 text-indigo-600">
-                                <span class="text-xs font-bold text-slate-700">ランダム</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <button onclick="requestStart()" id="btn-start-game" class="w-full bg-emerald-500 text-white p-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition">
-                        ゲームを開始する！
-                    </button>
+                    <button onclick="requestStart()" class="w-full bg-emerald-500 text-white p-4 rounded-xl font-black text-lg">ゲーム開始！</button>
                 </div>
-
-                <div id="guest-msg" class="hidden text-center py-6 text-indigo-400 font-black animate-pulse text-xs uppercase tracking-widest italic tracking-wider">ホストの開始を待っています...</div>
+                <div id="guest-msg" class="hidden text-indigo-400 font-black animate-pulse text-xs">ホストが準備中...</div>
             </div>
         </div>
 
-        <!-- 3. ゲームメイン -->
+        <!-- GAME -->
         <div id="screen-game" class="hidden flex-1 flex flex-col min-h-0">
-            <div id="score-top" class="flex gap-2 overflow-x-auto py-1 shrink-0 no-scrollbar"></div>
-            <div class="bg-slate-900 py-6 px-3 rounded-[2rem] shadow-2xl text-center shrink-0 mb-2 border-b-4 border-slate-800">
+            <div id="score-top" class="flex gap-2 overflow-x-auto py-1 shrink-0"></div>
+            <div class="bg-slate-900 py-6 px-3 rounded-[2rem] shadow-xl text-center shrink-0 mb-2">
                 <div id="current-word" class="text-3xl font-black text-white tracking-widest break-all"></div>
-                <p class="text-indigo-500 text-[8px] font-bold mt-1 uppercase tracking-widest text-center">Current Word</p>
+                <p class="text-indigo-500 text-[8px] font-bold mt-1 uppercase">Current Word</p>
             </div>
-            <div class="flex-1 glass rounded-[2rem] p-4 mb-2 min-h-0 flex flex-col shadow-inner">
-                <div id="history-box" class="flex-1 font-bold text-slate-600 text-sm leading-relaxed"></div>
+            <div class="flex-1 glass rounded-2xl p-4 mb-2 min-h-0 flex flex-col">
+                <div id="history-box" class="flex-1 font-bold text-slate-600 text-sm"></div>
             </div>
-            <div class="shrink-0 safe-pb">
-                <div id="turn-info" class="text-center font-black text-indigo-600 text-[10px] mb-1 uppercase tracking-wider"></div>
+            <div class="shrink-0 pb-4">
+                <div id="turn-info" class="text-center font-black text-indigo-600 text-[10px] mb-1 uppercase"></div>
                 <div class="relative flex items-center">
-                    <input id="word-input" type="text" class="w-full p-4 pr-20 rounded-2xl glass shadow-lg font-bold text-lg outline-none border-2 border-indigo-100 focus:border-indigo-400 transition" placeholder="つなげる..." autocomplete="off">
-                    <button onclick="sendWord()" class="absolute right-2 bg-indigo-600 text-white px-5 py-2 rounded-xl font-black text-sm shadow-md active:scale-90 transition">GO</button>
+                    <input id="word-input" type="text" class="w-full p-4 pr-20 rounded-2xl glass shadow-lg font-bold text-lg outline-none border-2 border-indigo-100 focus:border-indigo-400" placeholder="つなげる..." autocomplete="off">
+                    <button id="btn-send" onclick="sendWord()" class="absolute right-2 bg-indigo-600 text-white px-5 py-2 rounded-xl font-black text-sm shadow-md active:scale-90">GO</button>
                 </div>
             </div>
         </div>
 
-        <!-- 4. 勝利画面 -->
+        <!-- WIN -->
         <div id="screen-win" class="hidden fixed inset-0 bg-indigo-600 z-50 flex flex-col items-center justify-center p-6 text-center text-white">
-            <div id="winner-name" class="text-5xl font-black text-yellow-400 mb-10 drop-shadow-lg italic"></div>
-            <button onclick="location.reload()" class="bg-white text-indigo-600 px-12 py-4 rounded-full font-black text-lg shadow-2xl transition hover:bg-yellow-400">タイトルへ</button>
+            <div id="winner-name" class="text-5xl font-black text-yellow-400 mb-10"></div>
+            <button onclick="location.reload()" class="bg-white text-indigo-600 px-12 py-4 rounded-full font-black">タイトルへ</button>
         </div>
     </div>
 
@@ -136,72 +83,57 @@
         let isHost = false;
 
         function handleLogin() {
-            const nameInput = document.getElementById('name-input');
-            if(!nameInput.value) return;
-            if (!roomId) {
-                roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
-                window.history.pushState({}, '', window.location.origin + window.location.pathname + '?room=' + roomId);
-            }
-            document.getElementById('invite-url').value = window.location.href;
-            socket.emit('joinRoom', { roomId, name: nameInput.value });
+            const name = document.getElementById('name-input').value;
+            if(!name) return;
+            if (!roomId) roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
+            socket.emit('joinRoom', { roomId, name });
             document.getElementById('screen-login').classList.add('hidden');
             document.getElementById('screen-lobby').classList.remove('hidden');
+            document.getElementById('invite-url').value = window.location.origin + window.location.pathname + '?room=' + roomId;
         }
 
         function copyUrl() {
             const urlInput = document.getElementById("invite-url");
-            urlInput.select();
-            document.execCommand("copy");
-            alert("URLをコピーしました！");
+            urlInput.select(); document.execCommand("copy"); alert("コピーしました！");
         }
 
         function requestStart() {
-            // 安全装置: 各要素が取得できなくてもデフォルト設定で送る
-            const mSelect = document.getElementById('m-select');
-            const vInput = document.getElementById('v-input');
-            const cN = document.getElementById('c-n');
-            const cSmall = document.getElementById('c-small');
-            const cDakuten = document.getElementById('c-dakuten');
-            const swRadio = document.querySelector('input[name="sw"]:checked');
-
-            const settings = {
-                mode: mSelect ? mSelect.value : 'point',
-                targetValue: vInput ? parseInt(vInput.value) : 15,
-                allowN: cN ? cN.checked : false,
-                smallToBig: cSmall ? cSmall.checked : true,
-                ignoreDakuten: cDakuten ? cDakuten.checked : true,
-                startWordType: swRadio ? swRadio.value : 'shiritori'
-            };
-
-            socket.emit('startGame', { roomId, settings });
+            socket.emit('startGame', {
+                roomId: roomId,
+                settings: {
+                    mode: document.getElementById('m-select').value,
+                    targetValue: parseInt(document.getElementById('v-input').value) || 15,
+                    allowN: document.getElementById('c-n').checked,
+                    smallToBig: document.getElementById('c-small').checked,
+                    ignoreDakuten: document.getElementById('c-dakuten').checked,
+                    startWordType: 'shiritori'
+                }
+            });
         }
 
         function sendWord() {
             const input = document.getElementById('word-input');
             const word = input.value.trim();
-            if(word) {
+            if(word && roomId) {
                 socket.emit('submitWord', { roomId, word });
                 input.value = "";
             }
         }
 
-        document.getElementById('word-input')?.addEventListener('keydown', (e) => {
+        document.getElementById('word-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); sendWord(); }
         });
 
         socket.on('assignedRole', (data) => {
             isHost = data.isHost;
-            if (isHost) document.getElementById('host-settings')?.classList.remove('hidden');
-            else document.getElementById('guest-msg')?.classList.remove('hidden');
+            if (isHost) document.getElementById('host-settings').classList.remove('hidden');
+            else document.getElementById('guest-msg').classList.remove('hidden');
         });
 
         socket.on('updatePlayers', (players) => {
-            const playerList = document.getElementById('player-list');
-            if (playerList) {
-                playerList.innerHTML = players.map(p => 
-                    `<span class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-bold shadow-sm">${p.isHost ? '👑 ' : ''}${p.name}</span>`
-                ).join('');
-            }
+            document.getElementById('player-list').innerHTML = players.map(p => 
+                `<span class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-bold">${p.isHost ? '👑 ' : ''}${p.name}</span>`
+            ).join('');
         });
 
         socket.on('gameStarted', (state) => {
@@ -211,38 +143,27 @@
         });
 
         socket.on('updateState', render);
-
         socket.on('gameOver', (data) => {
             render(data.state);
             document.getElementById('screen-win').classList.remove('hidden');
             document.getElementById('winner-name').innerText = data.winner + "の勝利！";
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
         });
-
         socket.on('errorMsg', (msg) => alert(msg));
 
         function render(state) {
-            const currentWordEl = document.getElementById('current-word');
-            const turnInfoEl = document.getElementById('turn-info');
-            const scoreEl = document.getElementById('score-top');
+            document.getElementById('current-word').innerText = state.lastWord;
+            const turnIndex = state.turnIndex;
+            document.getElementById('turn-info').innerText = state.players[turnIndex].id === socket.id ? "あなたの番！" : `${state.players[turnIndex].name}さんの番`;
+            document.getElementById('score-top').innerHTML = state.players.map((p, i) => `
+                <div class="shrink-0 px-5 py-2 rounded-xl glass ${i === turnIndex ? 'ring-2 ring-indigo-500 shadow-md scale-105' : 'opacity-40'}">
+                    <div class="text-[8px] font-bold text-slate-400">${p.name}</div>
+                    <div class="text-sm font-black">${p.score}</div>
+                </div>
+            `).join('');
             const historyBox = document.getElementById('history-box');
-
-            if (currentWordEl) currentWordEl.innerText = state.lastWord;
-            if (turnInfoEl) turnInfoEl.innerText = state.players[state.turnIndex].id === socket.id ? "あなたの番！" : `${state.players[state.turnIndex].name}さんの番`;
-            
-            if (scoreEl) {
-                scoreEl.innerHTML = state.players.map((p, i) => `
-                    <div class="shrink-0 px-5 py-2 rounded-xl glass ${i === state.turnIndex ? 'ring-2 ring-indigo-500 shadow-md scale-105' : 'opacity-40'}">
-                        <div class="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">${p.name}</div>
-                        <div class="text-sm font-black">${p.score}</div>
-                    </div>
-                `).join('');
-            }
-            
-            if (historyBox) {
-                historyBox.innerHTML = state.history.map(h => `<span class="history-item">${h}</span>`).join('');
-                historyBox.scrollTop = historyBox.scrollHeight;
-            }
+            historyBox.innerHTML = state.history.map(h => `<span class="history-item">${h}</span>`).join('');
+            historyBox.scrollTop = historyBox.scrollHeight;
         }
     </script>
 </body>
