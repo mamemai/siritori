@@ -40,7 +40,7 @@ io.on('connection', (socket) => {
         const existingPlayer = room.players.find(p => p.name === name);
         
         if (existingPlayer) {
-            existingPlayer.id = socket.id; // 再接続
+            existingPlayer.id = socket.id; 
         } else {
             room.players.push({ id: socket.id, name, score: 0, isHost: socket.id === room.hostId });
         }
@@ -59,7 +59,7 @@ io.on('connection', (socket) => {
         
         room.settings = settings;
         room.isStarted = true;
-        room.players.forEach(p => p.score = 0); // スコアリセット
+        room.players.forEach(p => p.score = 0); 
         
         room.lastWord = (settings.startWordType === 'random') ? 
             Array.from({length:4}, () => "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわ"[Math.floor(Math.random()*40)]).join('') : "しりとり";
@@ -69,7 +69,6 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('gameStarted', room);
     });
 
-    // ★ 新しく追加：ロビーに戻る処理
     socket.on('backToLobby', (roomId) => {
         const room = rooms[roomId];
         if (!room || socket.id !== room.hostId) return;
@@ -83,6 +82,11 @@ io.on('connection', (socket) => {
 
         const player = room.players[room.turnIndex];
         if (!player || socket.id !== player.id) return;
+
+        // ★ 修正点：「ん」で終わるチェック
+        if (!room.settings.allowN && (word.endsWith('ん') || word.endsWith('ン'))) {
+            return socket.emit('errorMsg', "「ん」で終わる単語は使えません！");
+        }
 
         if (room.history.includes(word)) return socket.emit('errorMsg', "すでに使われています");
 
@@ -119,15 +123,12 @@ io.on('connection', (socket) => {
         for (const id in rooms) {
             const room = rooms[id];
             const p = room.players.find(p => p.id === socket.id);
-            if (p) {
-                // ホストがいなくなったら次の人をホストにする（任意）
-                if (p.isHost && room.players.length > 1) {
-                    const nextHost = room.players.find(p => p.id !== socket.id);
-                    if(nextHost) {
-                        room.hostId = nextHost.id;
-                        nextHost.isHost = true;
-                        io.to(nextHost.id).emit('assignedRole', { isHost: true });
-                    }
+            if (p && p.isHost && room.players.length > 1) {
+                const nextHost = room.players.find(p => p.id !== socket.id);
+                if(nextHost) {
+                    room.hostId = nextHost.id;
+                    nextHost.isHost = true;
+                    io.to(nextHost.id).emit('assignedRole', { isHost: true });
                 }
             }
         }
