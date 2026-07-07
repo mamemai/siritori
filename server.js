@@ -20,22 +20,27 @@ const dakutenMap = {
 function normalize(str, settings) {
     if (!str) return "";
     let res = str;
-    if (settings.ignoreDakuten) res = res.split('').map(c => dakutenMap[c] || c).join('');
-    if (settings.smallToBig) res = res.split('').map(c => smallMap[c] || c).join('');
+    // 設定がなくてもデフォルトで実行するように修正
+    if (!settings || settings.ignoreDakuten !== false) {
+        res = res.split('').map(c => dakutenMap[c] || c).join('');
+    }
+    if (!settings || settings.smallToBig !== false) {
+        res = res.split('').map(c => smallMap[c] || c).join('');
+    }
     return res;
 }
 
 io.on('connection', (socket) => {
     socket.on('joinRoom', ({ roomId, name }) => {
-        if (!roomId || !name) return;
+        if (!roomId) return;
         socket.join(roomId);
         if (!rooms[roomId]) {
             rooms[roomId] = {
-                players: [], history: [], lastWord: "", turnIndex: 0, settings: {}, isStarted: false, hostId: socket.id
+                players: [], history: [], lastWord: "", turnIndex: 0, settings: { mode: 'point', targetValue: 15 }, isStarted: false, hostId: socket.id
             };
         }
         const room = rooms[roomId];
-        room.players.push({ id: socket.id, name, score: 0, isHost: socket.id === room.hostId });
+        room.players.push({ id: socket.id, name: name || "ななし", score: 0, isHost: socket.id === room.hostId });
         io.to(roomId).emit('updatePlayers', room.players);
         socket.emit('assignedRole', { isHost: socket.id === room.hostId });
     });
@@ -43,9 +48,9 @@ io.on('connection', (socket) => {
     socket.on('startGame', ({ roomId, settings }) => {
         const room = rooms[roomId];
         if (!room || socket.id !== room.hostId) return;
-        room.settings = settings;
+        room.settings = settings || { mode: 'point', targetValue: 15 };
         room.isStarted = true;
-        room.lastWord = (settings.startWordType === 'random') ? 
+        room.lastWord = (settings && settings.startWordType === 'random') ? 
             Array.from({length:4}, () => "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわ"[Math.floor(Math.random()*40)]).join('') : "しりとり";
         room.history = [room.lastWord];
         room.turnIndex = 0;
@@ -56,22 +61,17 @@ io.on('connection', (socket) => {
         const room = rooms[roomId];
         if (!room || !room.isStarted) return;
 
-        // プレイヤーの存在確認
         const player = room.players[room.turnIndex];
         if (!player || socket.id !== player.id) {
             return socket.emit('errorMsg', "あなたの番ではありません");
         }
 
-        const normalizedInput = normalize(word, room.settings);
-        const normalizedHistory = room.history.map(h => normalize(h, room.settings));
-
-        // 重複チェック（正規化後でも比較）
-        if (room.history.includes(word) || normalizedHistory.includes(normalizedInput)) {
+        if (room.history.includes(word)) {
             return socket.emit('errorMsg', "その単語はすでに使われています！");
         }
 
         const normPrev = normalize(room.lastWord, room.settings);
-        const normNext = normalizedInput;
+        const normNext = normalize(word, room.settings);
         
         let overlap = 0;
         for (let i = Math.min(normPrev.length, normNext.length); i > 0; i--) {
@@ -88,10 +88,8 @@ io.on('connection', (socket) => {
                 return io.to(roomId).emit('gameOver', { winner: player.name, state: room });
             } 
             
-            // ターン交代
             room.turnIndex = (room.turnIndex + 1) % room.players.length;
 
-            // ターン制の終了判定
             if (room.settings.mode === 'turn' && room.history.length > room.players.length * room.settings.targetValue) {
                 const max = Math.max(...room.players.map(p => p.score));
                 const winners = room.players.filter(p => p.score === max).map(p => p.name).join(' & ');
@@ -100,24 +98,19 @@ io.on('connection', (socket) => {
 
             io.to(roomId).emit('updateState', room);
         } else {
-            socket.emit('errorMsg', "単語がつながっていません！");
+            socket.emit('errorMsg', "つながっていません！（重ねてください）");
         }
     });
 
     socket.on('disconnect', () => {
         for (const id in rooms) {
             const room = rooms[id];
-            const pIndex = room.players.findIndex(p => p.id === socket.id);
-            if (pIndex !== -1) {
-                room.players.splice(pIndex, 1);
-                // 抜けた人が今の番だった場合の調整
-                if (room.turnIndex >= room.players.length) room.turnIndex = 0;
-                io.to(id).emit('updatePlayers', room.players);
-                if (room.players.length === 0) delete rooms[id];
-            }
+            room.players = room.players.filter(p => p.id !== socket.id);
+            if (room.players.length === 0) delete rooms[id];
+            else io.to(id).emit('updatePlayers', room.players);
         }
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+server.listen(PORT, () => console.log(`Running`));
