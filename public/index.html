@@ -12,29 +12,26 @@
         body { 
             font-family: 'Noto Sans JP', sans-serif; 
             background: #f0f4ff;
-            /* dynamic viewport heightでキーボード対応 */
             height: 100dvh;
             margin: 0;
+            overflow: hidden; /* 全体のスクロールを禁止 */
         }
         .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.3); }
         .history-item::before { content: "→"; margin: 0 0.5rem; color: #6366f1; opacity: 0.5; }
         .history-item:first-child::before { content: ""; margin: 0; }
         
-        /* 履歴ボックスのスクロールを滑らかに */
         #history-box { 
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
         }
-        
-        /* スコア欄の横スクロールバーを隠す */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="p-2">
-    <div id="app" class="max-w-md mx-auto h-full flex flex-col overflow-hidden">
+    <div id="app" class="max-w-md mx-auto h-full flex flex-col">
         
-        <!-- 1. 名前入力画面 -->
+        <!-- 1. ログイン画面 -->
         <div id="screen-login" class="flex-1 flex flex-col justify-center space-y-6">
             <div class="text-center">
                 <h1 class="text-4xl font-black text-indigo-600 tracking-tighter">ブロックしりとり</h1>
@@ -46,7 +43,7 @@
         </div>
 
         <!-- 2. ロビー画面 -->
-        <div id="screen-lobby" class="hidden flex-1 flex flex-col justify-center space-y-4 overflow-y-auto">
+        <div id="screen-lobby" class="hidden flex-1 flex flex-col justify-center space-y-4">
             <div class="glass p-5 rounded-3xl shadow-lg space-y-3">
                 <h2 class="text-center font-black text-indigo-900 text-sm">待機中</h2>
                 <div class="bg-indigo-50 p-3 rounded-xl">
@@ -63,42 +60,44 @@
                         </select>
                         <input id="v-input" type="number" value="15" class="p-2 rounded-lg bg-indigo-50 font-bold text-xs outline-none">
                     </div>
-                    <button onclick="requestStart()" class="w-full bg-emerald-500 text-white p-3 rounded-xl font-black text-md">ゲーム開始！</button>
+                    <div class="flex gap-4 justify-center text-[10px] font-bold text-slate-500">
+                        <label class="flex items-center gap-1"><input type="checkbox" id="c-n"> んOK</label>
+                    </div>
+                    <button onclick="requestStart()" class="w-full bg-emerald-500 text-white p-3 rounded-xl font-black text-md active:scale-95 transition">ゲーム開始！</button>
                 </div>
                 <div id="guest-msg" class="hidden text-center py-2 text-indigo-400 font-black animate-pulse text-xs">ホストが準備中...</div>
             </div>
         </div>
 
-        <!-- 3. ゲームメイン画面 -->
+        <!-- 3. ゲーム画面 -->
         <div id="screen-game" class="hidden flex-1 flex flex-col min-h-0">
-            <!-- スコア (上部) -->
+            <!-- スコア -->
             <div id="score-top" class="flex gap-2 overflow-x-auto py-1 shrink-0 no-scrollbar"></div>
             
             <!-- メインワード -->
             <div class="bg-slate-900 py-4 px-3 rounded-2xl shadow-xl text-center shrink-0 mb-2">
-                <div id="current-word" class="text-2xl md:text-3xl font-black text-white tracking-widest break-all mb-1"></div>
-                <p class="text-indigo-500 text-[8px] font-black uppercase tracking-widest">Current Word</p>
+                <div id="current-word" class="text-2xl font-black text-white tracking-widest break-all mb-1"></div>
+                <p class="text-indigo-500 text-[8px] font-black uppercase">Current Word</p>
             </div>
 
-            <div id="turn-info" class="text-center font-black text-indigo-600 text-[9px] mb-1 uppercase shrink-0"></div>
-
-            <!-- 履歴ボックス (ここが自動で伸縮して他を押し出さないようにする) -->
+            <!-- 履歴ボックス (ここが伸縮する) -->
             <div class="flex-1 glass rounded-2xl p-3 mb-2 min-h-0 flex flex-col shadow-inner">
-                <p class="text-[8px] font-black text-slate-400 mb-1 uppercase">履歴</p>
                 <div id="history-box" class="flex-1 font-bold text-slate-600 text-xs leading-relaxed"></div>
             </div>
 
-            <!-- ★入力欄とGOボタン (下部に絶対に残す部分) -->
-            <div class="flex gap-2 shrink-0 bg-f0f4ff pt-1 pb-2">
-                <input id="word-input" type="text" class="flex-1 p-4 rounded-xl glass shadow-md font-bold text-lg outline-none border-2 border-transparent focus:border-indigo-400" placeholder="つなげる..." enterkeyhint="go">
-                <button onclick="sendWord()" class="bg-indigo-600 text-white px-6 rounded-xl font-black text-lg shadow-lg active:scale-90 transition">GO</button>
+            <!-- 入力欄とGOボタン (絶対に下に固定) -->
+            <div class="shrink-0 pb-4 pt-1">
+                <div id="turn-info" class="text-center font-black text-indigo-600 text-[10px] mb-1 uppercase"></div>
+                <div class="flex gap-2">
+                    <input id="word-input" type="text" class="flex-1 p-4 rounded-xl glass shadow-md font-bold text-lg outline-none border-2 border-transparent focus:border-indigo-400" placeholder="つなげる..." enterkeyhint="go">
+                    <button onclick="sendWord()" class="bg-indigo-600 text-white px-6 rounded-xl font-black text-lg shadow-lg active:scale-90 transition">GO</button>
+                </div>
             </div>
         </div>
 
-        <!-- 4. 勝利画面 -->
+        <!-- 勝利画面 -->
         <div id="screen-win" class="hidden fixed inset-0 bg-indigo-600 z-50 flex flex-col items-center justify-center p-6 text-center text-white">
-            <p class="text-yellow-400 text-sm font-black mb-2 uppercase">Winner!</p>
-            <div id="winner-name" class="text-4xl font-black mb-8 italic shadow-sm"></div>
+            <div id="winner-name" class="text-4xl font-black mb-8 italic"></div>
             <button onclick="location.reload()" class="bg-white text-indigo-600 px-10 py-4 rounded-full font-black">タイトルへ</button>
         </div>
     </div>
@@ -134,12 +133,17 @@
         }
 
         function requestStart() {
+            // エラー防止のため、要素があるか確認しながら取得
+            const mSelect = document.getElementById('m-select');
+            const vInput = document.getElementById('v-input');
+            const cN = document.getElementById('c-n');
+
             socket.emit('startGame', {
-                roomId,
+                roomId: roomId,
                 settings: {
-                    mode: document.getElementById('m-select').value,
-                    targetValue: document.getElementById('v-input').value,
-                    allowN: document.getElementById('c-n')?.checked || false,
+                    mode: mSelect ? mSelect.value : 'point',
+                    targetValue: vInput ? parseInt(vInput.value) : 15,
+                    allowN: cN ? cN.checked : false,
                     smallToBig: true,
                     ignoreDakuten: true,
                     startWordType: 'shiritori'
@@ -155,21 +159,23 @@
             }
         }
 
-        // Enterキーでも送信できるように
         document.getElementById('word-input')?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendWord();
         });
 
         socket.on('assignedRole', (data) => {
             isHost = data.isHost;
-            if (isHost) document.getElementById('host-settings').classList.remove('hidden');
-            else document.getElementById('guest-msg').classList.remove('hidden');
+            if (isHost) document.getElementById('host-settings')?.classList.remove('hidden');
+            else document.getElementById('guest-msg')?.classList.remove('hidden');
         });
 
         socket.on('updatePlayers', (players) => {
-            document.getElementById('player-list').innerHTML = players.map(p => 
-                `<span class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-bold shadow-sm">${p.isHost ? '👑 ' : ''}${p.name}</span>`
-            ).join('');
+            const list = document.getElementById('player-list');
+            if (list) {
+                list.innerHTML = players.map(p => 
+                    `<span class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-bold shadow-sm">${p.isHost ? '👑 ' : ''}${p.name}</span>`
+                ).join('');
+            }
         });
 
         socket.on('gameStarted', (state) => {
@@ -183,7 +189,7 @@
         socket.on('gameOver', (data) => {
             render(data.state);
             document.getElementById('screen-win').classList.remove('hidden');
-            document.getElementById('winner-name').innerText = data.winner + "！";
+            document.getElementById('winner-name').innerText = data.winner + "の勝利！";
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
         });
 
@@ -191,18 +197,27 @@
 
         function render(state) {
             const turnIndex = state.turnIndex;
-            document.getElementById('current-word').innerText = state.lastWord;
-            document.getElementById('turn-info').innerText = state.players[turnIndex].id === socket.id ? "あなたの番！" : `${state.players[turnIndex].name}さんの番`;
-            document.getElementById('score-top').innerHTML = state.players.map((p, i) => `
-                <div class="shrink-0 px-4 py-2 rounded-xl glass ${i === turnIndex ? 'ring-2 ring-indigo-500' : 'opacity-40'}">
-                    <div class="text-[8px] font-bold text-slate-400">${p.name}</div>
-                    <div class="text-xs font-black">${p.score}</div>
-                </div>
-            `).join('');
-            
+            const lastWordEl = document.getElementById('current-word');
+            const turnInfoEl = document.getElementById('turn-info');
+            const scoreEl = document.getElementById('score-top');
             const historyBox = document.getElementById('history-box');
-            historyBox.innerHTML = state.history.map(h => `<span class="history-item">${h}</span>`).join('');
-            historyBox.scrollTop = historyBox.scrollHeight;
+
+            if (lastWordEl) lastWordEl.innerText = state.lastWord;
+            if (turnInfoEl) turnInfoEl.innerText = state.players[turnIndex].id === socket.id ? "あなたの番！" : `${state.players[turnIndex].name}さんの番`;
+            
+            if (scoreEl) {
+                scoreEl.innerHTML = state.players.map((p, i) => `
+                    <div class="shrink-0 px-4 py-2 rounded-xl glass ${i === turnIndex ? 'ring-2 ring-indigo-500' : 'opacity-40'}">
+                        <div class="text-[8px] font-bold text-slate-400">${p.name}</div>
+                        <div class="text-xs font-black">${p.score}</div>
+                    </div>
+                `).join('');
+            }
+            
+            if (historyBox) {
+                historyBox.innerHTML = state.history.map(h => `<span class="history-item">${h}</span>`).join('');
+                historyBox.scrollTop = historyBox.scrollHeight;
+            }
         }
     </script>
 </body>
